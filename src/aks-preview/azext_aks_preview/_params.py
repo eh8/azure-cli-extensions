@@ -3161,12 +3161,6 @@ def load_arguments(self, _):
             help="The Kubernetes namespace where the sreclaw operator will be deployed.",
             required=True,
         )
-        c.argument(
-            "litellm_master_key",
-            options_list=["--litellm-master-key"],
-            help="The LiteLLM master key for the sreclaw operator.",
-            required=True,
-        )
 
     with self.argument_context("aks sreclaw create") as c:
         c.argument(

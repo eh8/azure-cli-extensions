@@ -4475,13 +4475,10 @@ helps['aks sreclaw enable'] = """
         - name: --namespace
           type: string
           short-summary: The Kubernetes namespace where the sreclaw operator will be deployed.
-        - name: --litellm-master-key
-          type: string
-          short-summary: The LiteLLM master key for the sreclaw operator.
     examples:
         - name: Enable sreclaw operator on an AKS cluster
           text: |-
-            az aks sreclaw enable --resource-group myResourceGroup --name myAKSCluster --namespace my-namespace --litellm-master-key my-secret-key
+            az aks sreclaw enable --resource-group myResourceGroup --name myAKSCluster --namespace my-namespace
 """
 
 helps['aks sreclaw create'] = """

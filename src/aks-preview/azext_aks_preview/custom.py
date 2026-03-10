@@ -5418,10 +5418,8 @@ def aks_sreclaw_enable(
     resource_group_name,
     name,
     namespace,
-    litellm_master_key,
 ):
     """Enable the sreclaw operator on an AKS cluster via Helm."""
-    import base64
     import tempfile
 
     from kubernetes import client as k8s_client
@@ -5467,31 +5465,6 @@ def aks_sreclaw_enable(
                 raise CLIError(
                     f"Failed to check namespace '{namespace}': {e.reason}"
                 ) from e
-
-        # Create or update the litellm-master-key secret
-        logger.info("Creating/updating secret 'litellm-master-key' in namespace '%s'...", namespace)
-        secret_name = "litellm-master-key"
-        secret_body = k8s_client.V1Secret(
-            metadata=k8s_client.V1ObjectMeta(name=secret_name, namespace=namespace),
-            type="Opaque",
-            data={
-                "master-key": base64.b64encode(
-                    litellm_master_key.encode("utf-8")
-                ).decode("utf-8"),
-            },
-        )
-        try:
-            core_v1.read_namespaced_secret(name=secret_name, namespace=namespace)
-            core_v1.replace_namespaced_secret(
-                name=secret_name, namespace=namespace, body=secret_body
-            )
-            logger.info("Secret 'litellm-master-key' updated.")
-        except ApiException as e:
-            if e.status == 404:
-                core_v1.create_namespaced_secret(namespace=namespace, body=secret_body)
-                logger.info("Secret 'litellm-master-key' created.")
-            else:
-                raise CLIError(f"Failed to manage secret: {e.reason}") from e
 
         # Run helm upgrade --install
         helm_args = [
