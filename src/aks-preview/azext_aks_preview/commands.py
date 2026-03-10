@@ -3,36 +3,43 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
-from azure.cli.core.commands import CliCommandType
-
 from azext_aks_preview._client_factory import (
     cf_agent_pools,
-    cf_managed_namespaces,
-    cf_maintenance_configurations,
-    cf_managed_clusters,
-    cf_mc_snapshots,
-    cf_nodepool_snapshots,
-    cf_machines,
-    cf_operations,
-    cf_load_balancers,
     cf_identity_bindings,
     cf_jwt_authenticators,
+    cf_load_balancers,
+    cf_machines,
+    cf_maintenance_configurations,
+    cf_managed_clusters,
+    cf_managed_namespaces,
+    cf_mc_snapshots,
+    cf_nodepool_snapshots,
+    cf_operations,
 )
-
 from azext_aks_preview._format import (
     aks_addon_list_available_table_format,
     aks_addon_list_table_format,
-    aks_namespace_list_table_format,
     aks_addon_show_table_format,
     aks_agentpool_list_table_format,
-    aks_agentpool_show_table_format,
     aks_agentpool_rollback_versions_table_format,
-    aks_machine_list_table_format,
-    aks_machine_show_table_format,
-    aks_operation_show_table_format,
+    aks_agentpool_show_table_format,
+    aks_extension_list_table_format,
+    aks_extension_show_table_format,
+    aks_extension_type_show_table_format,
+    aks_extension_type_version_show_table_format,
+    aks_extension_type_versions_list_table_format,
+    aks_extension_types_list_table_format,
+    aks_jwtauthenticator_list_table_format,
+    aks_jwtauthenticator_show_table_format,
     aks_list_nodepool_snapshot_table_format,
     aks_list_snapshot_table_format,
     aks_list_table_format,
+    aks_machine_list_table_format,
+    aks_machine_show_table_format,
+    aks_mesh_revisions_table_format,
+    aks_mesh_upgrades_table_format,
+    aks_namespace_list_table_format,
+    aks_operation_show_table_format,
     aks_pod_identities_table_format,
     aks_pod_identity_exceptions_table_format,
     aks_show_nodepool_snapshot_table_format,
@@ -40,18 +47,8 @@ from azext_aks_preview._format import (
     aks_show_table_format,
     aks_upgrades_table_format,
     aks_versions_table_format,
-    aks_mesh_revisions_table_format,
-    aks_mesh_upgrades_table_format,
-    aks_extension_list_table_format,
-    aks_extension_show_table_format,
-    aks_extension_types_list_table_format,
-    aks_extension_type_show_table_format,
-    aks_extension_type_versions_list_table_format,
-    aks_extension_type_version_show_table_format,
-    aks_jwtauthenticator_list_table_format,
-    aks_jwtauthenticator_show_table_format,
 )
-
+from azure.cli.core.commands import CliCommandType
 from knack.log import get_logger
 
 logger = get_logger(__name__)
@@ -588,13 +585,22 @@ def load_command_table(self, _):
             table_transformer=aks_jwtauthenticator_show_table_format
         )
 
+    with self.command_group(
+        "aks sreclaw",
+        managed_clusters_sdk,
+        client_factory=cf_managed_clusters,
+    ) as g:
+        g.custom_command("enable", "aks_sreclaw_enable")
+        g.custom_command("create", "aks_sreclaw_create")
+        g.custom_command("connect", "aks_sreclaw_connect")
+
     # AKS safeguards commands - override generated commands with custom classes
     with self.command_group('aks safeguards'):
-        from .aks_safeguards_custom import AKSSafeguardsShowCustom as Show
         from .aks_safeguards_custom import AKSSafeguardsCreateCustom as Create
-        from .aks_safeguards_custom import AKSSafeguardsUpdateCustom as Update
         from .aks_safeguards_custom import AKSSafeguardsDeleteCustom as Delete
         from .aks_safeguards_custom import AKSSafeguardsListCustom as List
+        from .aks_safeguards_custom import AKSSafeguardsShowCustom as Show
+        from .aks_safeguards_custom import AKSSafeguardsUpdateCustom as Update
         from .aks_safeguards_custom import AKSSafeguardsWaitCustom as Wait
 
         self.command_table["aks safeguards show"] = Show(loader=self)

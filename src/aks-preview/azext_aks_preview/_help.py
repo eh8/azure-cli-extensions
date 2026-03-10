@@ -4453,3 +4453,99 @@ helps['aks jwtauthenticator show'] = """
         - name: Show a specific JWT authenticator configuration
           text: az aks jwtauthenticator show -g MyResourceGroup --cluster-name MyCluster --name myjwt
 """
+
+helps['aks sreclaw'] = """
+    type: group
+    short-summary: Manage the sreclaw operator for AKS clusters.
+"""
+
+helps['aks sreclaw enable'] = """
+    type: command
+    short-summary: Enable the sreclaw operator on an AKS cluster.
+    long-summary: |-
+      Installs or upgrades the sreclaw-operator Helm chart (version 0.1.4) into the specified namespace
+      on the target AKS cluster.
+    parameters:
+        - name: --name -n
+          type: string
+          short-summary: Name of the managed cluster.
+        - name: --resource-group -g
+          type: string
+          short-summary: Name of the resource group.
+        - name: --namespace
+          type: string
+          short-summary: The Kubernetes namespace where the sreclaw operator will be deployed.
+        - name: --litellm-master-key
+          type: string
+          short-summary: The LiteLLM master key for the sreclaw operator.
+    examples:
+        - name: Enable sreclaw operator on an AKS cluster
+          text: |-
+            az aks sreclaw enable --resource-group myResourceGroup --name myAKSCluster --namespace my-namespace --litellm-master-key my-secret-key
+"""
+
+helps['aks sreclaw create'] = """
+    type: command
+    short-summary: Create an OpenClawInstance custom resource on an AKS cluster.
+    long-summary: |-
+      Creates an OpenClawInstance Kubernetes custom resource in the specified namespace.
+      A gateway-token secret is created from the provided API key and API base.
+      The --api-key and --api-base flags fall back to the API_KEY and
+      API_BASE environment variables respectively.
+    parameters:
+        - name: --name -n
+          type: string
+          short-summary: Name of the managed cluster.
+        - name: --resource-group -g
+          type: string
+          short-summary: Name of the resource group.
+        - name: --namespace
+          type: string
+          short-summary: The Kubernetes namespace where the OpenClawInstance will be created.
+        - name: --alias
+          type: string
+          short-summary: User alias for the OpenClawInstance.
+        - name: --api-key
+          type: string
+          short-summary: API key for the gateway token. Falls back to API_KEY env var.
+        - name: --api-base
+          type: string
+          short-summary: API base URL for the gateway. Falls back to API_BASE env var.
+    examples:
+        - name: Create an OpenClawInstance with explicit flags
+          text: |-
+            az aks sreclaw create --resource-group myResourceGroup --name myAKSCluster --namespace my-namespace --alias alice --api-key myApiKey --api-base https://my-api.openai.azure.com
+        - name: Create an OpenClawInstance using environment variables for api-key and api-base
+          text: |-
+            export API_KEY=myApiKey
+            export API_BASE=https://my-api.openai.azure.com
+            az aks sreclaw create --resource-group myResourceGroup --name myAKSCluster --namespace my-namespace --alias alice
+"""
+
+helps['aks sreclaw connect'] = """
+    type: command
+    short-summary: Port-forward a sreclaw service to the local machine.
+    long-summary: |-
+      Forwards local port 18789 (or the port specified by --local-port) to the Kubernetes
+      service 'openclaw-<alias>' in namespace 'aksclaw-<alias>' on the target AKS cluster.
+      Uses the Kubernetes Python client port-forward API.
+    parameters:
+        - name: --name -n
+          type: string
+          short-summary: Name of the managed cluster.
+        - name: --resource-group -g
+          type: string
+          short-summary: Name of the resource group.
+        - name: --alias
+          type: string
+          short-summary: User alias. Determines the service and namespace names.
+        - name: --local-port
+          type: int
+          short-summary: Local port to listen on. Defaults to 18789.
+    examples:
+        - name: Port-forward the sreclaw service for alias alice
+          text: |-
+            az aks sreclaw connect --resource-group myResourceGroup --name myAKSCluster --alias alice        - name: Port-forward on a custom local port
+          text: |-
+            az aks sreclaw connect --resource-group myResourceGroup --name myAKSCluster --alias alice --local-port 9090
+"""

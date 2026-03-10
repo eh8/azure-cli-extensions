@@ -10,11 +10,11 @@ import os
 import os.path
 import platform
 import ssl
+import subprocess
 import sys
 import threading
 import time
 import webbrowser
-import subprocess
 
 from azext_aks_preview._client_factory import (
     CUSTOM_MGMT_AKS_PREVIEW,
@@ -25,18 +25,29 @@ from azext_aks_preview._consts import (
     ADDONS,
     ADDONS_DESCRIPTIONS,
     CONST_ACC_SGX_QUOTE_HELPER_ENABLED,
+    CONST_ARTIFACT_SOURCE_DIRECT,
+    CONST_AVAILABILITY_SET,
     CONST_AZURE_KEYVAULT_SECRETS_PROVIDER_ADDON_NAME,
+    CONST_AZURE_SERVICE_MESH_MODE_ISTIO,
+    CONST_AZURE_SERVICE_MESH_UPGRADE_COMMAND_COMPLETE,
+    CONST_AZURE_SERVICE_MESH_UPGRADE_COMMAND_ROLLBACK,
+    CONST_AZURE_SERVICE_MESH_UPGRADE_COMMAND_START,
     CONST_CONFCOM_ADDON_NAME,
+    CONST_DEFAULT_NODE_OS_TYPE,
     CONST_INGRESS_APPGW_ADDON_NAME,
     CONST_INGRESS_APPGW_APPLICATION_GATEWAY_ID,
     CONST_INGRESS_APPGW_APPLICATION_GATEWAY_NAME,
     CONST_INGRESS_APPGW_SUBNET_CIDR,
     CONST_INGRESS_APPGW_SUBNET_ID,
     CONST_INGRESS_APPGW_WATCH_NAMESPACE,
+    CONST_K8S_EXTENSION_CLIENT_FACTORY_MOD_NAME,
+    CONST_K8S_EXTENSION_CUSTOM_MOD_NAME,
     CONST_KUBE_DASHBOARD_ADDON_NAME,
+    CONST_MIN_NODE_IMAGE_VERSION,
     CONST_MONITORING_ADDON_NAME,
     CONST_MONITORING_LOG_ANALYTICS_WORKSPACE_RESOURCE_ID,
     CONST_MONITORING_USING_AAD_MSI_AUTH,
+    CONST_NODE_PROVISIONING_STATE_SUCCEEDED,
     CONST_NODEPOOL_MODE_USER,
     CONST_OPEN_SERVICE_MESH_ADDON_NAME,
     CONST_ROTATION_POLL_INTERVAL,
@@ -44,35 +55,24 @@ from azext_aks_preview._consts import (
     CONST_SCALE_SET_PRIORITY_REGULAR,
     CONST_SECRET_ROTATION_ENABLED,
     CONST_SPOT_EVICTION_POLICY_DELETE,
-    CONST_VIRTUAL_NODE_ADDON_NAME,
-    CONST_VIRTUAL_NODE_SUBNET_NAME,
-    CONST_AZURE_SERVICE_MESH_MODE_ISTIO,
-    CONST_AZURE_SERVICE_MESH_UPGRADE_COMMAND_START,
-    CONST_AZURE_SERVICE_MESH_UPGRADE_COMMAND_COMPLETE,
-    CONST_AZURE_SERVICE_MESH_UPGRADE_COMMAND_ROLLBACK,
     CONST_SSH_ACCESS_LOCALUSER,
-    CONST_NODE_PROVISIONING_STATE_SUCCEEDED,
-    CONST_DEFAULT_NODE_OS_TYPE,
     CONST_VIRTUAL_MACHINE_SCALE_SETS,
     CONST_VIRTUAL_MACHINES,
-    CONST_AVAILABILITY_SET,
-    CONST_MIN_NODE_IMAGE_VERSION,
-    CONST_ARTIFACT_SOURCE_DIRECT,
-    CONST_K8S_EXTENSION_CUSTOM_MOD_NAME,
-    CONST_K8S_EXTENSION_CLIENT_FACTORY_MOD_NAME,
+    CONST_VIRTUAL_NODE_ADDON_NAME,
+    CONST_VIRTUAL_NODE_SUBNET_NAME,
 )
 from azext_aks_preview._helpers import (
+    check_is_monitoring_addon_enabled,
     check_is_private_link_cluster,
+    get_all_extension_types_in_allow_list,
+    get_all_extensions_in_allow_list,
     get_cluster_snapshot_by_snapshot_id,
+    get_extension_in_allow_list,
     get_k8s_extension_module,
     get_nodepool_snapshot_by_snapshot_id,
     print_or_merge_credentials,
     process_message_for_run_command,
-    check_is_monitoring_addon_enabled,
-    get_all_extension_types_in_allow_list,
-    get_all_extensions_in_allow_list,
     raise_validation_error_if_extension_type_not_in_allow_list,
-    get_extension_in_allow_list,
     uses_kubelogin_devicecode,
     which,
 )
@@ -88,7 +88,6 @@ from azext_aks_preview.addonconfiguration import (
     add_virtual_node_role_assignment,
     enable_addons,
 )
-
 from azext_aks_preview.aks_diagnostics import aks_kanalyze_cmd, aks_kollect_cmd
 from azext_aks_preview.aks_draft.commands import (
     aks_draft_cmd_create,
@@ -97,70 +96,65 @@ from azext_aks_preview.aks_draft.commands import (
     aks_draft_cmd_up,
     aks_draft_cmd_update,
 )
-from azext_aks_preview.bastion.bastion import (
-    aks_bastion_parse_bastion_resource,
-    aks_bastion_get_local_port,
-    aks_bastion_extension,
-    aks_bastion_set_kubeconfig,
-    aks_bastion_runner,
-    aks_batsion_clean_up
-)
-from azext_aks_preview.maintenanceconfiguration import (
-    aks_maintenanceconfiguration_update_internal,
-)
 from azext_aks_preview.aks_identity_binding.commands import (
     aks_ib_cmd_create,
     aks_ib_cmd_delete,
-    aks_ib_cmd_show,
     aks_ib_cmd_list,
+    aks_ib_cmd_show,
 )
-from azext_aks_preview.managednamespace import (
-    aks_managed_namespace_add,
-    aks_managed_namespace_update,
-)
-from azext_aks_preview.machine import (
-    add_machine,
-    update_machine,
+from azext_aks_preview.bastion.bastion import (
+    aks_bastion_extension,
+    aks_bastion_get_local_port,
+    aks_bastion_parse_bastion_resource,
+    aks_bastion_runner,
+    aks_bastion_set_kubeconfig,
+    aks_batsion_clean_up,
 )
 from azext_aks_preview.jwtauthenticator import (
     aks_jwtauthenticator_add_internal,
     aks_jwtauthenticator_update_internal,
 )
+from azext_aks_preview.machine import add_machine, update_machine
+from azext_aks_preview.maintenanceconfiguration import (
+    aks_maintenanceconfiguration_update_internal,
+)
+from azext_aks_preview.managednamespace import (
+    aks_managed_namespace_add,
+    aks_managed_namespace_update,
+)
 from azure.cli.command_modules.acs._helpers import (
-    get_user_assigned_identity_by_resource_id
+    get_user_assigned_identity_by_resource_id,
 )
-from azure.cli.command_modules.acs._validators import (
-    extract_comma_separated_string,
-)
+from azure.cli.command_modules.acs._validators import extract_comma_separated_string
 from azure.cli.command_modules.acs.addonconfiguration import (
-    ensure_container_insights_for_monitoring,
-    ensure_default_log_analytics_workspace_for_monitoring,
-    sanitize_loganalytics_ws_resource_id,
-    get_existing_container_insights_extension_dcr_tags,
-    validate_data_collection_settings,
-    create_data_collection_endpoint,
-    create_or_delete_dcr_association,
-    create_dce_association,
-    create_ampls_scope,
-    get_resources_client,
+    ContainerInsightsStreams,
     _get_data_collection_settings,
     _trim_suffix_if_needed,
-    ContainerInsightsStreams,
+    create_ampls_scope,
+    create_data_collection_endpoint,
+    create_dce_association,
+    create_or_delete_dcr_association,
+    ensure_container_insights_for_monitoring,
+    ensure_default_log_analytics_workspace_for_monitoring,
+    get_existing_container_insights_extension_dcr_tags,
+    get_resources_client,
+    sanitize_loganalytics_ws_resource_id,
+    validate_data_collection_settings,
 )
 from azure.cli.core.api import get_config_dir
 from azure.cli.core.azclierror import (
     ArgumentUsageError,
+    AzCLIError,
     ClientRequestError,
     InvalidArgumentValueError,
     MutuallyExclusiveArgumentError,
     RequiredArgumentMissingError,
     ValidationError,
-    AzCLIError,
 )
 from azure.cli.core.commands import LongRunningOperation
 from azure.cli.core.commands.client_factory import (
-    get_subscription_id,
     get_mgmt_service_client,
+    get_subscription_id,
 )
 from azure.cli.core.profiles import ResourceType
 from azure.cli.core.util import (
@@ -169,10 +163,7 @@ from azure.cli.core.util import (
     send_raw_request,
     shell_safe_json_parse,
 )
-from azure.core.exceptions import (
-    ResourceNotFoundError,
-    HttpResponseError,
-)
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from dateutil.parser import parse
 from knack.log import get_logger
 from knack.prompting import prompt_y_n
@@ -375,11 +366,13 @@ def ensure_container_insights_for_monitoring_preview(
 
         # create ingestion DCE if high log scale mode enabled
         if enable_high_log_scale_mode:
-            ingestion_dce_resource_id = create_data_collection_endpoint(cmd, cluster_subscription, cluster_resource_group_name, location, ingestionDataCollectionEndpointName, is_use_ampls)
+            ingestion_dce_resource_id = create_data_collection_endpoint(
+                cmd, cluster_subscription, cluster_resource_group_name, location, ingestionDataCollectionEndpointName, is_use_ampls)
 
         # create config DCE if AMPLS resource specified
         if is_use_ampls:
-            config_dce_resource_id = create_data_collection_endpoint(cmd, cluster_subscription, cluster_resource_group_name, cluster_region, configDataCollectionEndpointName, is_use_ampls)
+            config_dce_resource_id = create_data_collection_endpoint(
+                cmd, cluster_subscription, cluster_resource_group_name, cluster_region, configDataCollectionEndpointName, is_use_ampls)
 
         if create_dcr:
             # first get the association between region display names and region IDs (because for some reason
@@ -574,7 +567,8 @@ def ensure_container_insights_for_monitoring_preview(
 
         if create_dcra:
             # only create or delete the association between the DCR and cluster
-            create_or_delete_dcr_association(cmd, cluster_region, remove_monitoring, cluster_resource_id, dcr_resource_id)
+            create_or_delete_dcr_association(cmd, cluster_region, remove_monitoring,
+                                             cluster_resource_id, dcr_resource_id)
             if is_use_ampls:
                 # associate config DCE to the cluster
                 create_dce_association(cmd, cluster_region, cluster_resource_id, config_dce_resource_id)
@@ -584,7 +578,8 @@ def ensure_container_insights_for_monitoring_preview(
                 create_ampls_scope(cmd, ampls_resource_id, workspace_name, workspace_resource_id)
                 # link ingest DCE to AMPLS
                 if enable_high_log_scale_mode:
-                    create_ampls_scope(cmd, ampls_resource_id, ingestionDataCollectionEndpointName, ingestion_dce_resource_id)
+                    create_ampls_scope(cmd, ampls_resource_id, ingestionDataCollectionEndpointName,
+                                       ingestion_dce_resource_id)
 
 
 # pylint: disable=too-many-locals
@@ -1180,8 +1175,10 @@ def aks_create(
         )
 
     # decorator pattern
+    from azext_aks_preview.managed_cluster_decorator import (
+        AKSPreviewManagedClusterCreateDecorator,
+    )
     from azure.cli.command_modules.acs._consts import DecoratorEarlyExitException
-    from azext_aks_preview.managed_cluster_decorator import AKSPreviewManagedClusterCreateDecorator
     aks_create_decorator = AKSPreviewManagedClusterCreateDecorator(
         cmd=cmd,
         client=client,
@@ -1408,8 +1405,10 @@ def aks_update(
     # DO NOT MOVE: get all the original parameters and save them as a dictionary
     raw_parameters = locals()
 
+    from azext_aks_preview.managed_cluster_decorator import (
+        AKSPreviewManagedClusterUpdateDecorator,
+    )
     from azure.cli.command_modules.acs._consts import DecoratorEarlyExitException
-    from azext_aks_preview.managed_cluster_decorator import AKSPreviewManagedClusterUpdateDecorator
 
     # decorator pattern
     aks_update_decorator = AKSPreviewManagedClusterUpdateDecorator(
@@ -1913,8 +1912,11 @@ def aks_agentpool_add(
     raw_parameters = locals()
 
     # decorator pattern
-    from azure.cli.command_modules.acs._consts import AgentPoolDecoratorMode, DecoratorEarlyExitException
     from azext_aks_preview.agentpool_decorator import AKSPreviewAgentPoolAddDecorator
+    from azure.cli.command_modules.acs._consts import (
+        AgentPoolDecoratorMode,
+        DecoratorEarlyExitException,
+    )
     aks_agentpool_add_decorator = AKSPreviewAgentPoolAddDecorator(
         cmd=cmd,
         client=client,
@@ -1988,8 +1990,11 @@ def aks_agentpool_update(
     raw_parameters = locals()
 
     # decorator pattern
-    from azure.cli.command_modules.acs._consts import AgentPoolDecoratorMode, DecoratorEarlyExitException
     from azext_aks_preview.agentpool_decorator import AKSPreviewAgentPoolUpdateDecorator
+    from azure.cli.command_modules.acs._consts import (
+        AgentPoolDecoratorMode,
+        DecoratorEarlyExitException,
+    )
     aks_agentpool_update_decorator = AKSPreviewAgentPoolUpdateDecorator(
         cmd=cmd,
         client=client,
@@ -3551,7 +3556,10 @@ def aks_pod_identity_add(
         pod_identity.binding_selector = binding_selector
     pod_identities.append(pod_identity)
 
-    from azext_aks_preview.managed_cluster_decorator import AKSPreviewManagedClusterModels
+    from azext_aks_preview.managed_cluster_decorator import (
+        AKSPreviewManagedClusterModels,
+    )
+
     # store all the models used by pod identity
     pod_identity_models = AKSPreviewManagedClusterModels(
         cmd, CUSTOM_MGMT_AKS_PREVIEW).pod_identity_models
@@ -3595,7 +3603,10 @@ def aks_pod_identity_delete(
                 continue
             pod_identities.append(pod_identity)
 
-    from azext_aks_preview.managed_cluster_decorator import AKSPreviewManagedClusterModels
+    from azext_aks_preview.managed_cluster_decorator import (
+        AKSPreviewManagedClusterModels,
+    )
+
     # store all the models used by pod identity
     pod_identity_models = AKSPreviewManagedClusterModels(
         cmd, CUSTOM_MGMT_AKS_PREVIEW).pod_identity_models
@@ -3650,7 +3661,10 @@ def aks_pod_identity_exception_add(
         name=exc_name, namespace=exc_namespace, pod_labels=pod_labels)
     pod_identity_exceptions.append(exc)
 
-    from azext_aks_preview.managed_cluster_decorator import AKSPreviewManagedClusterModels
+    from azext_aks_preview.managed_cluster_decorator import (
+        AKSPreviewManagedClusterModels,
+    )
+
     # store all the models used by pod identity
     pod_identity_models = AKSPreviewManagedClusterModels(
         cmd, CUSTOM_MGMT_AKS_PREVIEW).pod_identity_models
@@ -3694,7 +3708,10 @@ def aks_pod_identity_exception_delete(
                 continue
             pod_identity_exceptions.append(exc)
 
-    from azext_aks_preview.managed_cluster_decorator import AKSPreviewManagedClusterModels
+    from azext_aks_preview.managed_cluster_decorator import (
+        AKSPreviewManagedClusterModels,
+    )
+
     # store all the models used by pod identity
     pod_identity_models = AKSPreviewManagedClusterModels(
         cmd, CUSTOM_MGMT_AKS_PREVIEW).pod_identity_models
@@ -3752,7 +3769,10 @@ def aks_pod_identity_exception_update(
     if not found_target:
         raise CLIError(f"pod identity exception {exc_namespace}/{exc_name} not found")
 
-    from azext_aks_preview.managed_cluster_decorator import AKSPreviewManagedClusterModels
+    from azext_aks_preview.managed_cluster_decorator import (
+        AKSPreviewManagedClusterModels,
+    )
+
     # store all the models used by pod identity
     pod_identity_models = AKSPreviewManagedClusterModels(
         cmd, CUSTOM_MGMT_AKS_PREVIEW).pod_identity_models
@@ -4226,8 +4246,10 @@ def _aks_mesh_update(
 ):
     raw_parameters = locals()
 
+    from azext_aks_preview.managed_cluster_decorator import (
+        AKSPreviewManagedClusterUpdateDecorator,
+    )
     from azure.cli.command_modules.acs._consts import DecoratorEarlyExitException
-    from azext_aks_preview.managed_cluster_decorator import AKSPreviewManagedClusterUpdateDecorator
 
     aks_update_decorator = AKSPreviewManagedClusterUpdateDecorator(
         cmd=cmd,
@@ -4473,8 +4495,10 @@ def _aks_applicationloadbalancer_update(
         enable_application_load_balancer=None,
         disable_application_load_balancer=None
 ):
+    from azext_aks_preview.managed_cluster_decorator import (
+        AKSPreviewManagedClusterUpdateDecorator,
+    )
     from azure.cli.command_modules.acs._consts import DecoratorEarlyExitException
-    from azext_aks_preview.managed_cluster_decorator import AKSPreviewManagedClusterUpdateDecorator
 
     raw_parameters = locals()
 
@@ -4512,8 +4536,10 @@ def _aks_approuting_update(
         enable_default_domain=None,
         disable_default_domain=None,
 ):
+    from azext_aks_preview.managed_cluster_decorator import (
+        AKSPreviewManagedClusterUpdateDecorator,
+    )
     from azure.cli.command_modules.acs._consts import DecoratorEarlyExitException
-    from azext_aks_preview.managed_cluster_decorator import AKSPreviewManagedClusterUpdateDecorator
 
     raw_parameters = locals()
 
@@ -5200,10 +5226,10 @@ def aks_loadbalancer_rebalance_nodes(
     :type no_wait: bool
     :return: The result of the rebalance operation
     """
+    from azext_aks_preview._client_factory import cf_managed_clusters
     from azext_aks_preview.loadbalancerconfiguration import (
         aks_loadbalancer_rebalance_internal,
     )
-    from azext_aks_preview._client_factory import cf_managed_clusters
 
     # Get the load balancers client
     managed_clusters_client = cf_managed_clusters(cmd.cli_ctx)
@@ -5375,3 +5401,425 @@ def aks_jwtauthenticator_list(cmd, client, resource_group_name, cluster_name, ak
 def aks_jwtauthenticator_show(cmd, client, resource_group_name, cluster_name, name, aks_custom_headers=None):
     headers = get_aks_custom_headers(aks_custom_headers)
     return client.get(resource_group_name, cluster_name, name, headers=headers)
+
+
+# ---------------------------------------------------------------------------
+# sreclaw operator
+# ---------------------------------------------------------------------------
+
+SRECLAW_CHART_REPO = "oci://aksclaw.azurecr.io/helm/aksclaw-operator"
+SRECLAW_CHART_VERSION = "0.1.4"
+SRECLAW_RELEASE_NAME = "sreclaw-operator"
+
+
+def aks_sreclaw_enable(
+    cmd,   # pylint: disable=unused-argument
+    client,
+    resource_group_name,
+    name,
+    namespace,
+    litellm_master_key,
+):
+    """Enable the sreclaw operator on an AKS cluster via Helm."""
+    import base64
+    import tempfile
+
+    from kubernetes import client as k8s_client
+    from kubernetes import config as k8s_config
+    from kubernetes.client.rest import ApiException
+
+    # Fetch admin kubeconfig and write to a temp file
+    credential_results = client.list_cluster_admin_credentials(
+        resource_group_name, name
+    )
+    if not credential_results or not credential_results.kubeconfigs:
+        raise CLIError("No Kubernetes admin credentials found.")
+
+    kubeconfig_data = credential_results.kubeconfigs[0].value.decode("utf-8")
+    kubeconfig_fd, kubeconfig_path = tempfile.mkstemp(suffix=".kubeconfig")
+    try:
+        with os.fdopen(kubeconfig_fd, "w") as f:
+            f.write(kubeconfig_data)
+
+        # Initialize Kubernetes client from the admin kubeconfig
+        k8s_config.load_kube_config(config_file=kubeconfig_path)
+        core_v1 = k8s_client.CoreV1Api()
+
+        # Ensure the namespace exists
+        logger.info("Ensuring namespace '%s' exists...", namespace)
+        try:
+            core_v1.read_namespace(name=namespace)
+            logger.info("Namespace '%s' already exists.", namespace)
+        except ApiException as e:
+            if e.status == 404:
+                try:
+                    core_v1.create_namespace(
+                        body=k8s_client.V1Namespace(
+                            metadata=k8s_client.V1ObjectMeta(name=namespace)
+                        )
+                    )
+                    logger.info("Namespace '%s' created.", namespace)
+                except ApiException as create_err:
+                    raise CLIError(
+                        f"Failed to create namespace '{namespace}': {create_err.reason}"
+                    ) from create_err
+            else:
+                raise CLIError(
+                    f"Failed to check namespace '{namespace}': {e.reason}"
+                ) from e
+
+        # Create or update the litellm-master-key secret
+        logger.info("Creating/updating secret 'litellm-master-key' in namespace '%s'...", namespace)
+        secret_name = "litellm-master-key"
+        secret_body = k8s_client.V1Secret(
+            metadata=k8s_client.V1ObjectMeta(name=secret_name, namespace=namespace),
+            type="Opaque",
+            data={
+                "master-key": base64.b64encode(
+                    litellm_master_key.encode("utf-8")
+                ).decode("utf-8"),
+            },
+        )
+        try:
+            core_v1.read_namespaced_secret(name=secret_name, namespace=namespace)
+            core_v1.replace_namespaced_secret(
+                name=secret_name, namespace=namespace, body=secret_body
+            )
+            logger.info("Secret 'litellm-master-key' updated.")
+        except ApiException as e:
+            if e.status == 404:
+                core_v1.create_namespaced_secret(namespace=namespace, body=secret_body)
+                logger.info("Secret 'litellm-master-key' created.")
+            else:
+                raise CLIError(f"Failed to manage secret: {e.reason}") from e
+
+        # Run helm upgrade --install
+        helm_args = [
+            "helm", "upgrade", "--install",
+            SRECLAW_RELEASE_NAME,
+            SRECLAW_CHART_REPO,
+            "--namespace", namespace,
+            "--version", SRECLAW_CHART_VERSION,
+            "--wait",
+        ]
+
+        env = {**os.environ, "KUBECONFIG": kubeconfig_path}
+
+        logger.info("Installing sreclaw-operator (v%s) into namespace '%s'...",
+                    SRECLAW_CHART_VERSION, namespace)
+        logger.info("Running: %s", " ".join(helm_args))
+
+        try:
+            result = subprocess.run(  # pylint: disable=subprocess-run-check
+                helm_args,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            if result.returncode != 0:
+                raise CLIError(f"Helm install failed: {result.stderr}")
+
+            logger.info("sreclaw-operator successfully installed in namespace '%s'.", namespace)
+            if result.stdout:
+                logger.info(result.stdout)
+
+        except FileNotFoundError:
+            raise CLIError(  # pylint: disable=raise-missing-from
+                "Helm CLI not found. Please install Helm: https://helm.sh/docs/intro/install/"
+            )
+    finally:
+        # Clean up temp kubeconfig
+        if os.path.exists(kubeconfig_path):
+            os.remove(kubeconfig_path)
+
+
+SRECLAW_CR_GROUP = "aksclaw.microsoft.com"
+SRECLAW_CR_VERSION = "v1alpha1"
+SRECLAW_CR_PLURAL = "openclawinstances"
+
+
+def aks_sreclaw_create(
+    cmd,   # pylint: disable=unused-argument
+    client,
+    resource_group_name,
+    name,
+    namespace,
+    alias,
+    api_key=None,
+    api_base=None,
+):
+    """Create an OpenClawInstance custom resource on an AKS cluster."""
+    import base64
+    import tempfile
+
+    from kubernetes import client as k8s_client
+    from kubernetes import config as k8s_config
+    from kubernetes.client.rest import ApiException
+
+    # Resolve api-key and api-base from flags or environment variables
+    api_key = api_key or os.environ.get("API_KEY")
+    api_base = api_base or os.environ.get("API_BASE")
+    if not api_key:
+        raise CLIError(
+            "--api-key is required. Provide it as a flag or set the API_KEY environment variable."
+        )
+    if not api_base:
+        raise CLIError(
+            "--api-base is required. Provide it as a flag or set the API_BASE environment variable."
+        )
+
+    # Fetch admin kubeconfig and write to a temp file
+    credential_results = client.list_cluster_admin_credentials(
+        resource_group_name, name
+    )
+    if not credential_results or not credential_results.kubeconfigs:
+        raise CLIError("No Kubernetes admin credentials found.")
+
+    kubeconfig_data = credential_results.kubeconfigs[0].value.decode("utf-8")
+    kubeconfig_fd, kubeconfig_path = tempfile.mkstemp(suffix=".kubeconfig")
+    try:
+        with os.fdopen(kubeconfig_fd, "w") as f:
+            f.write(kubeconfig_data)
+
+        # Initialize Kubernetes client from the admin kubeconfig
+        k8s_config.load_kube_config(config_file=kubeconfig_path)
+        core_v1 = k8s_client.CoreV1Api()
+        custom_api = k8s_client.CustomObjectsApi()
+
+        # Create or update the gateway-token secret for this alias
+        secret_name = f"gateway-token-{alias}"
+        logger.info(
+            "Creating/updating secret '%s' in namespace '%s'...",
+            secret_name, namespace,
+        )
+        secret_body = k8s_client.V1Secret(
+            metadata=k8s_client.V1ObjectMeta(name=secret_name, namespace=namespace),
+            type="Opaque",
+            data={
+                "api-key": base64.b64encode(api_key.encode("utf-8")).decode("utf-8"),
+                "api-base": base64.b64encode(api_base.encode("utf-8")).decode("utf-8"),
+            },
+        )
+        try:
+            core_v1.read_namespaced_secret(name=secret_name, namespace=namespace)
+            core_v1.replace_namespaced_secret(
+                name=secret_name, namespace=namespace, body=secret_body
+            )
+            logger.info("Secret '%s' updated.", secret_name)
+        except ApiException as e:
+            if e.status == 404:
+                core_v1.create_namespaced_secret(namespace=namespace, body=secret_body)
+                logger.info("Secret '%s' created.", secret_name)
+            else:
+                raise CLIError(f"Failed to manage secret: {e.reason}") from e
+
+        # Build the OpenClawInstance custom resource
+        cr_body = {
+            "apiVersion": f"{SRECLAW_CR_GROUP}/{SRECLAW_CR_VERSION}",
+            "kind": "OpenClawInstance",
+            "metadata": {
+                "name": alias,
+                "namespace": namespace,
+            },
+            "spec": {
+                "gatewayTokenSecretRef": secret_name,
+                "user": {
+                    "alias": alias,
+                },
+                "helm": {
+                    "values": {
+                        "skills": {
+                            "shared": False,
+                        },
+                    },
+                },
+            },
+        }
+
+        # Create or replace the custom resource
+        logger.info(
+            "Creating OpenClawInstance '%s' in namespace '%s'...",
+            alias, namespace,
+        )
+        try:
+            custom_api.get_namespaced_custom_object(
+                group=SRECLAW_CR_GROUP,
+                version=SRECLAW_CR_VERSION,
+                namespace=namespace,
+                plural=SRECLAW_CR_PLURAL,
+                name=alias,
+            )
+            # Already exists — replace it
+            custom_api.replace_namespaced_custom_object(
+                group=SRECLAW_CR_GROUP,
+                version=SRECLAW_CR_VERSION,
+                namespace=namespace,
+                plural=SRECLAW_CR_PLURAL,
+                name=alias,
+                body=cr_body,
+            )
+            logger.info("OpenClawInstance '%s' updated.", alias)
+        except ApiException as e:
+            if e.status == 404:
+                custom_api.create_namespaced_custom_object(
+                    group=SRECLAW_CR_GROUP,
+                    version=SRECLAW_CR_VERSION,
+                    namespace=namespace,
+                    plural=SRECLAW_CR_PLURAL,
+                    body=cr_body,
+                )
+                logger.info("OpenClawInstance '%s' created.", alias)
+            else:
+                raise CLIError(
+                    f"Failed to manage OpenClawInstance '{alias}': {e.reason}"
+                ) from e
+
+    finally:
+        # Clean up temp kubeconfig
+        if os.path.exists(kubeconfig_path):
+            os.remove(kubeconfig_path)
+
+
+def aks_sreclaw_connect(
+    cmd,   # pylint: disable=unused-argument
+    client,
+    resource_group_name,
+    name,
+    alias,
+    local_port=18789,
+):
+    """Port-forward the openclaw-<alias> service in namespace aksclaw-<alias>."""
+    import select
+    import socket
+    import tempfile
+    import threading
+
+    from kubernetes import client as k8s_client
+    from kubernetes import config as k8s_config
+    from kubernetes.client import Configuration
+    from kubernetes.client.rest import ApiException
+    from kubernetes.stream import portforward
+
+    svc_name = f"openclaw-{alias}"
+    namespace = f"aksclaw-{alias}"
+
+    # Fetch admin kubeconfig and write to a temp file
+    credential_results = client.list_cluster_admin_credentials(
+        resource_group_name, name
+    )
+    if not credential_results or not credential_results.kubeconfigs:
+        raise CLIError("No Kubernetes admin credentials found.")
+
+    kubeconfig_data = credential_results.kubeconfigs[0].value.decode("utf-8")
+    kubeconfig_fd, kubeconfig_path = tempfile.mkstemp(suffix=".kubeconfig")
+    try:
+        with os.fdopen(kubeconfig_fd, "w") as f:
+            f.write(kubeconfig_data)
+
+        # Initialize Kubernetes client from the admin kubeconfig
+        k8s_config.load_kube_config(config_file=kubeconfig_path)
+        cfg = Configuration.get_default_copy()
+        cfg.assert_hostname = False
+        Configuration.set_default(cfg)
+        core_v1 = k8s_client.CoreV1Api()
+
+        # Read the service to find its port and pod selector
+        try:
+            service = core_v1.read_namespaced_service(name=svc_name, namespace=namespace)
+        except ApiException as e:
+            raise CLIError(
+                f"Failed to read service '{svc_name}' in namespace '{namespace}': {e.reason}"
+            ) from e
+
+        # Resolve target port from the service (use first port)
+        if not service.spec.ports:
+            raise CLIError(f"Service '{svc_name}' has no ports defined.")
+        svc_port = service.spec.ports[0]
+        target_port = svc_port.target_port or svc_port.port
+
+        # Find a backing pod via the service selector
+        selector = service.spec.selector or {}
+        if not selector:
+            raise CLIError(f"Service '{svc_name}' has no selector; cannot resolve pods.")
+        label_selector = ",".join(f"{k}={v}" for k, v in selector.items())
+        pods = core_v1.list_namespaced_pod(namespace, label_selector=label_selector)
+        if not pods.items:
+            raise CLIError(f"No pods found for service '{svc_name}' in namespace '{namespace}'.")
+        pod_name = pods.items[0].metadata.name
+
+        # If target_port is a named port, resolve to numeric
+        if isinstance(target_port, str):
+            resolved = None
+            for container in pods.items[0].spec.containers:
+                for cp in (container.ports or []):
+                    if cp.name == target_port:
+                        resolved = cp.container_port
+                        break
+                if resolved:
+                    break
+            if resolved is None:
+                raise CLIError(f"Unable to resolve named port '{target_port}' on pod '{pod_name}'.")
+            target_port = resolved
+
+        logger.info(
+            "Port-forwarding localhost:%d -> pod/%s:%d (service/%s) in namespace '%s'...",
+            local_port, pod_name, target_port, svc_name, namespace,
+        )
+        print(f"Forwarding localhost:{local_port} -> {svc_name}:{target_port} "
+              f"(pod/{pod_name}) in namespace {namespace}")
+        print("Press Ctrl+C to stop.")
+
+        # Start a local TCP server and forward each connection through the k8s portforward API
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(("127.0.0.1", local_port))
+        server.listen(5)
+        server.settimeout(1.0)  # allow periodic Ctrl+C checking
+
+        def _forward(local_conn, pf_socket):
+            """Bidirectionally forward data between local_conn and pf_socket."""
+            try:
+                while True:
+                    readable, _, _ = select.select([local_conn, pf_socket], [], [], 1.0)
+                    if local_conn in readable:
+                        data = local_conn.recv(4096)
+                        if not data:
+                            break
+                        pf_socket.sendall(data)
+                    if pf_socket in readable:
+                        data = pf_socket.recv(4096)
+                        if not data:
+                            break
+                        local_conn.sendall(data)
+            except Exception:  # pylint: disable=broad-except
+                pass
+            finally:
+                local_conn.close()
+                pf_socket.close()
+
+        try:
+            while True:
+                try:
+                    conn, addr = server.accept()
+                except socket.timeout:
+                    continue
+                logger.info("Connection from %s", addr)
+                pf = portforward(
+                    core_v1.connect_get_namespaced_pod_portforward,
+                    pod_name,
+                    namespace,
+                    ports=str(target_port),
+                )
+                pf_sock = pf.socket(target_port)
+                pf_sock.setblocking(True)
+                t = threading.Thread(target=_forward, args=(conn, pf_sock), daemon=True)
+                t.start()
+        except KeyboardInterrupt:
+            print("\nStopping port-forward.")
+        finally:
+            server.close()
+
+    finally:
+        # Clean up temp kubeconfig
+        if os.path.exists(kubeconfig_path):
+            os.remove(kubeconfig_path)
