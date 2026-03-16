@@ -17,7 +17,7 @@ class AnthropicProvider(LLMProvider):
         return "Anthropic"
 
     @property
-    def model_route(self) -> str:
+    def name(self) -> str:
         return "anthropic"
 
     @property

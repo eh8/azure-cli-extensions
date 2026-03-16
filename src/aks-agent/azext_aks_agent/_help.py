@@ -16,7 +16,7 @@ helps[
       This command allows you to ask questions about your Azure Kubernetes cluster and get answers using AI models.
 
       Prerequisites:
-      - Run 'az aks agent-init -n {name} -g {resource_group_name}' first to configure the LLM provider and deployment mode
+      - Run 'az aks claw create -n {name} -g {resource_group_name}' first to configure the LLM provider and deployment mode
       - For client mode: Docker must be installed and running
     parameters:
         - name: --name -n
@@ -43,7 +43,7 @@ helps[
           short-summary: Disable interactive mode. When set, the agent will not prompt for input and will run in batch mode.
         - name: --no-echo-request
           type: bool
-          short-summary: Disable echoing back the question provided to AKS Agent in the output.
+          short-summary: Disable echoing back the question provided to SREClaw in the output.
         - name: --show-tool-output
           type: bool
           short-summary: Show the output of each tool that was called during the analysis.
@@ -52,16 +52,16 @@ helps[
           short-summary: Refresh the toolsets status.
         - name: --status
           type: bool
-          short-summary: Show AKS agent deployment status including helm release, deployments, and pod information.
+          short-summary: Show SREClaw deployment status including helm release, deployments, and pod information.
         - name: --namespace
           type: string
-          short-summary: The Kubernetes namespace where the AKS Agent is deployed. Required for cluster mode.
+          short-summary: The Kubernetes namespace where SREClaw is deployed. Required for cluster mode.
         - name: --mode
           type: string
           short-summary: The mode decides how the agent is deployed.
           long-summary: |-
             The agent can be deployed in two modes:
-            - cluster mode: Deploys AKS agent as a Helm release on the cluster with managed aks-mcp instance
+            - cluster mode: Deploys SREClaw as a Helm release on the cluster with managed aks-mcp instance
             - client mode: Configures agent to run locally in a Docker container
             Default is 'cluster' mode.
     examples:
@@ -71,7 +71,7 @@ helps[
         - name: Ask about pod issues in the cluster with last configured model
           text: |-
             az aks agent "Why are my pods not starting?" --resource-group myResourceGroup --name myAKSCluster
-        - name: Check AKS agent deployment status
+        - name: Check SREClaw deployment status
           text: |-
             az aks agent --status --resource-group myResourceGroup --name myAKSCluster
         - name: Ask about pod issues in the cluster with Azure OpenAI
@@ -95,10 +95,10 @@ helps[
 """
 
 helps[
-    "aks agent-init"
+    "aks claw create"
 ] = """
     type: command
-    short-summary: Initialize and validate LLM provider/model configuration for AKS agent.
+    short-summary: Initialize and validate LLM provider/model configuration for SREClaw.
     long-summary: |-
       This command interactively guides you to select an LLM provider and model, validates the connection, and saves the configuration for later use.
       You can run this command multiple times to add or update different model configurations.
@@ -117,18 +117,18 @@ helps[
           type: string
           short-summary: Name of the resource group.
     examples:
-        - name: Initialize and deploy AKS agent to a cluster
+        - name: Initialize and deploy SREClaw to a cluster
           text: |-
-            az aks agent-init --resource-group myResourceGroup --name myAKSCluster
+            az aks claw create --resource-group myResourceGroup --name myAKSCluster
 """
 
 helps[
     "aks agent-cleanup"
 ] = """
     type: command
-    short-summary: Cleanup and uninstall AKS agent from the cluster.
+    short-summary: Cleanup and uninstall SREClaw from the cluster.
     long-summary: |-
-      This command removes the AKS agent and deletes all associated resources from the cluster.
+      This command removes SREClaw and deletes all associated resources from the cluster.
     parameters:
         - name: --name -n
           type: string
@@ -138,16 +138,16 @@ helps[
           short-summary: Name of the resource group.
         - name: --namespace
           type: string
-          short-summary: The Kubernetes namespace where the AKS Agent is deployed. Required for cluster mode.
+          short-summary: The Kubernetes namespace where SREClaw is deployed. Required for cluster mode.
         - name: --mode
           type: string
           short-summary: The mode decides how the agent is deployed.
           long-summary: |-
             The agent can be deployed in two modes:
-            - cluster mode: Deploys AKS agent as a Helm release on the cluster with managed aks-mcp instance
+            - cluster mode: Deploys SREClaw as a Helm release on the cluster with managed aks-mcp instance
             - client mode: Configures agent to run locally in a Docker container
             Default is 'cluster' mode.
     examples:
-        - name: Cleanup and uninstall AKS agent from the cluster
+        - name: Cleanup and uninstall SREClaw from the cluster
           text: az aks agent-cleanup --resource-group myResourceGroup --name myAKSCluster
 """

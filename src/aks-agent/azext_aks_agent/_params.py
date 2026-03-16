@@ -76,7 +76,7 @@ def load_arguments(self, _):
             help="Show AKS agent configuration and status information.",
         )
 
-    with self.argument_context("aks agent-init") as c:
+    with self.argument_context("aks claw create") as c:
         c.argument(
             "resource_group_name",
             options_list=["--resource-group", "-g"],

@@ -26,6 +26,12 @@ class LLMConfigManager:
         # save the model config, and translate the model name to the one with llm provider route
         model_name = provider.model_name(params.get("model"))
         params["model"] = model_name
+        params["provider"] = provider.name
+        
+        # Store api_base at top level if it exists
+        if "api_base" in params:
+            params["api_base"] = params["api_base"]
+        
         self.model_list[model_name] = params
 
     def secured_model_list(self) -> Dict[str, dict]:
@@ -131,6 +137,12 @@ class LLMConfigManagerLocal:  # pylint: disable=too-few-public-methods
         # Save the model config, and translate the model name to the one with llm provider route
         model_name = provider.model_name(params.get("model"))
         params["model"] = model_name
+        params["provider"] = provider.name
+        
+        # Store api_base at top level if it exists
+        if "api_base" in params:
+            params["api_base"] = params["api_base"]
+        
         self.model_list[model_name] = params
 
         # Persist to file

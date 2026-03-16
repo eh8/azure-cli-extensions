@@ -26,5 +26,5 @@ def load_command_table(self, _):
 
     ) as g:
         g.custom_command("agent", "aks_agent")
-        g.custom_command("agent-init", "aks_agent_init")
+        g.custom_command("claw create", "aks_claw_create")
         g.custom_command("agent-cleanup", "aks_agent_cleanup")

@@ -48,24 +48,13 @@ class LLMProvider(ABC):
         provider name is the key to identity a llmprovider.
         https://docs.litellm.ai/docs/providers
         """
-        return self.model_route
-
-    @property
-    @abstractmethod
-    def model_route(self) -> str:
-        """Return the model route parameter key for this provider.
-        This model route indicates the model prefix of llm providers supported by LiteLLM, for example the azure openai.
-        https://docs.litellm.ai/docs/providers
-        """
-        return "base"
+        return self.provider
 
     def model_name(self, model_name) -> str:
         """Return the model name for this provider.
         The models name combines the model route and model name, e.g., "azure/gpt-5"
         https://docs.litellm.ai/docs/providers
         """
-        if self.model_route:
-            return f"{self.model_route}/{model_name}"
 
         return model_name
 

@@ -17,7 +17,7 @@ class GeminiProvider(LLMProvider):
         return "Gemini"
 
     @property
-    def model_route(self) -> str:
+    def name(self) -> str:
         return "gemini"
 
     @property

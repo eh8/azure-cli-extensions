@@ -29,12 +29,12 @@ logger = get_logger(__name__)
 
 
 # pylint: disable=too-many-branches
-def aks_agent_init(cmd,
-                   client,
-                   resource_group_name,
-                   cluster_name,
-                   ):
-    """Initialize AKS agent helm deployment with LLM configuration and cluster role setup."""
+def aks_claw_create(cmd,
+                    client,
+                    resource_group_name,
+                    cluster_name,
+                    ):
+    """Initialize SREClaw helm deployment with LLM configuration and cluster role setup."""
     subscription_id = get_subscription_id(cmd.cli_ctx)
 
     kubeconfig_path = get_aks_credentials(
@@ -46,79 +46,39 @@ def aks_agent_init(cmd,
 
     with CLITelemetryClient(event_type="init") as telemetry_client:
         try:
-            # Prompt user to choose between cluster mode and client mode
             console.print(
-                "\n🚀 Welcome to AKS Agent initialization!",
+                "\n🚀 Welcome to AKS SREClaw initialization!",
                 style=f"bold {HELP_COLOR}")
             console.print(
-                "\nPlease select the mode you want to use:",
+                "\nThis will set up the agent deployment in your cluster.",
                 style=f"bold {HELP_COLOR}")
-            console.print(
-                "  1. Cluster mode - Deploys agent as a pod in your AKS cluster",
-                style=INFO_COLOR)
-            console.print(
-                "     Uses service account and workload identity for secure access to cluster and Azure resources",
-                style="dim cyan")
-            console.print(
-                "  2. Client mode - Runs agent locally using Docker",
-                style=INFO_COLOR)
-            console.print(
-                "     Uses your local Azure credentials and cluster user credentials for access",
-                style="dim cyan")
 
+            telemetry_client.mode = "cluster"
+
+            console.print(
+                "\nPlease specify the namespace where the agent will be deployed.",
+                style=f"bold {HELP_COLOR}")
             while True:
-                mode_choice = console.input(
-                    f"\n[{HELP_COLOR}]Enter your choice (1 or 2): [/]").strip()
-                if mode_choice in ['1', '2']:
+                namespace = console.input(
+                    f"\n[{HELP_COLOR}]Enter namespace (e.g., 'kube-system'): [/]").strip()
+                if namespace:
                     break
-                console.print("Invalid choice. Please enter 1 or 2.", style=WARNING_COLOR)
+                console.print("Namespace cannot be empty. Please enter a valid namespace.", style=WARNING_COLOR)
 
-            use_client_mode = (mode_choice == '2')
-
-            # Record the mode being used in telemetry
-            telemetry_client.mode = "client" if use_client_mode else "cluster"
-
-            if use_client_mode:
-                console.print(
-                    "\n✅ Client mode selected. This will set up LLM configurations on your local environment.",
-                    style=f"bold {HELP_COLOR}")
-                aks_agent_manager = AKSAgentManagerClient(
-                    resource_group_name=resource_group_name,
-                    cluster_name=cluster_name,
-                    subscription_id=subscription_id,
-                    kubeconfig_path=kubeconfig_path,
-                )
-            else:
-                console.print(
-                    "\n✅ Cluster mode selected. This will set up the agent deployment in your cluster.",
-                    style=f"bold {HELP_COLOR}")
-
-                # Prompt user for namespace if not provided
-                console.print(
-                    "\nPlease specify the namespace where the agent will be deployed.",
-                    style=f"bold {HELP_COLOR}")
-                while True:
-                    namespace = console.input(
-                        f"\n[{HELP_COLOR}]Enter namespace (e.g., 'kube-system'): [/]").strip()
-                    if namespace:
-                        break
-                    console.print("Namespace cannot be empty. Please enter a valid namespace.", style=WARNING_COLOR)
-
-                console.print(f"\n📦 Using namespace: {namespace}", style=INFO_COLOR)
-                aks_agent_manager = AKSAgentManager(
-                    resource_group_name=resource_group_name,
-                    cluster_name=cluster_name,
-                    namespace=namespace,
-                    subscription_id=subscription_id,
-                    kubeconfig_path=kubeconfig_path,
-                )
+            console.print(f"\n📦 Using namespace: {namespace}", style=INFO_COLOR)
+            aks_agent_manager = AKSAgentManager(
+                resource_group_name=resource_group_name,
+                cluster_name=cluster_name,
+                namespace=namespace,
+                subscription_id=subscription_id,
+                kubeconfig_path=kubeconfig_path,
+            )
 
             # ===== PHASE 1: LLM Configuration Setup =====
             _setup_llm_configuration(console, aks_agent_manager)
 
-            if not use_client_mode:
-                # ===== PHASE 2: Helm Deployment =====
-                _setup_helm_deployment(console, aks_agent_manager)
+            # ===== PHASE 2: Helm Deployment =====
+            _setup_helm_deployment(console, aks_agent_manager)
 
         except Exception as e:
             console.print(f"❌ Error during initialization: {str(e)}", style=ERROR_COLOR)
@@ -171,7 +131,7 @@ def _setup_helm_deployment(console, aks_agent_manager: AKSAgentManager):
     helm_status = agent_status.get("helm_status", "not_found")
 
     if helm_status == "deployed":
-        console.print(f"✅ AKS agent helm chart is already deployed (status: {helm_status})", style=SUCCESS_COLOR)
+        console.print(f"✅ SREClaw helm chart is already deployed (status: {helm_status})", style=SUCCESS_COLOR)
 
         # Display existing service account from helm values and service account is immutable.
         service_account_name = aks_agent_manager.aks_mcp_service_account_name
@@ -187,7 +147,7 @@ def _setup_helm_deployment(console, aks_agent_manager: AKSAgentManager):
         # Prompt for service account configuration
         console.print("\n👤 Service Account Configuration", style=f"bold {HELP_COLOR}")
         console.print(
-            f"The AKS agent requires a service account with appropriate Azure and Kubernetes permissions in the '{aks_agent_manager.namespace}' namespace.",
+            f"SREClaw requires a service account with appropriate Azure and Kubernetes permissions in the '{aks_agent_manager.namespace}' namespace.",
             style=INFO_COLOR)
         console.print(
             "Please ensure you have created the necessary Role and RoleBinding in your namespace for this service account.",
@@ -214,26 +174,26 @@ def _setup_helm_deployment(console, aks_agent_manager: AKSAgentManager):
         init_cmd_flags = aks_agent_manager.init_command_flags()
         console.print(
             f"⚠️  Detected unexpected helm status: {helm_status}\n"
-            f"The AKS agent deployment is in an unexpected state.\n\n"
-            f"To investigate, run: az aks agent --status {cmd_flags}\n"
+            f"SREClaw deployment is in an unexpected state.\n\n"
+            f"To investigate, run: az sreclaw --status {cmd_flags}\n"
             f"To recover:\n"
-            f"  1. Clean up and reinitialize: az aks agent-cleanup {cmd_flags} && az aks agent-init {init_cmd_flags}\n"
+            f"  1. Clean up and reinitialize: az aks agent-cleanup {cmd_flags} && az aks claw create {init_cmd_flags}\n"
             f"  2. Check deployment logs for more details",
             style=HELP_COLOR)
         raise AzCLIError(f"Cannot proceed with initialization due to unexpected helm status: {helm_status}")
 
     # Deploy if configuration changed or helm charts not deployed
-    console.print("\n🚀 Deploying AKS agent (this typically takes less than 2 minutes)...", style=INFO_COLOR)
+    console.print("\n🚀 Deploying SREClaw (this typically takes less than 2 minutes)...", style=INFO_COLOR)
     success, error_msg = aks_agent_manager.deploy_agent()
 
     if success:
-        console.print("✅ AKS agent deployed successfully!", style=SUCCESS_COLOR)
+        console.print("✅ SREClaw deployed successfully!", style=SUCCESS_COLOR)
     else:
         console.print("❌ Failed to deploy agent", style=ERROR_COLOR)
         console.print(f"Error: {error_msg}", style=ERROR_COLOR)
         cmd_flags = aks_agent_manager.command_flags()
         console.print(
-            f"Run 'az aks agent --status {cmd_flags}' to investigate the deployment issue.",
+            f"Run 'az sreclaw --status {cmd_flags}' to investigate the deployment issue.",
             style=INFO_COLOR)
         raise AzCLIError("Failed to deploy agent")
 
@@ -241,16 +201,16 @@ def _setup_helm_deployment(console, aks_agent_manager: AKSAgentManager):
     console.print("Verifying deployment status...", style=INFO_COLOR)
     agent_status = aks_agent_manager.get_agent_status()
     if agent_status.get("ready", False):
-        console.print("✅ AKS agent is ready and running!", style=SUCCESS_COLOR)
+        console.print("✅ SREClaw is ready and running!", style=SUCCESS_COLOR)
         console.print("\n🎉 Initialization completed successfully!", style=SUCCESS_COLOR)
     else:
         console.print(
-            "⚠️  AKS agent is deployed but not yet ready. It may take a few moments to start.",
+            "⚠️  SREClaw is deployed but not yet ready. It may take a few moments to start.",
             style=WARNING_COLOR)
         if helm_status not in ["deployed", "superseded"]:
             cmd_flags = aks_agent_manager.command_flags()
             console.print(
-                f"You can check the status later using 'az aks agent --status {cmd_flags}'", style="cyan")
+                f"You can check the status later using 'az sreclaw --status {cmd_flags}'", style="cyan")
 
 
 def _setup_and_create_llm_config(console, aks_agent_manager: AKSAgentManagerLLMConfigBase):
@@ -284,7 +244,7 @@ def _setup_and_create_llm_config(console, aks_agent_manager: AKSAgentManagerLLMC
 
     elif error is not None and action == "retry_input":
         cmd_flags = aks_agent_manager.init_command_flags()
-        raise AzCLIError(f"Please re-run `az aks agent-init {cmd_flags}` to correct the input parameters. {error}")
+        raise AzCLIError(f"Please re-run `az aks claw create {cmd_flags}` to correct the input parameters. {error}")
     else:
         raise AzCLIError(f"Please check your deployed model and network connectivity. {error}")
 
@@ -293,7 +253,7 @@ def _aks_agent_local_status(agent_manager: AKSAgentManagerClient):
     """Display the status of LLM configuration in client mode."""
     console = get_console()
 
-    console.print("\n📊 Checking AKS agent status (client mode)...", style=INFO_COLOR)
+    console.print("\n📊 Checking SREClaw status (client mode)...", style=INFO_COLOR)
 
     # Check Docker status
     console.print("\n🐳 Docker Status:", style="bold cyan")
@@ -347,14 +307,14 @@ def _aks_agent_local_status(agent_manager: AKSAgentManagerClient):
         console.print("\n❌ No LLM configuration found", style=ERROR_COLOR)
         cmd_flags = agent_manager.init_command_flags()
         console.print(
-            f"Run 'az aks agent-init {cmd_flags}' to set up LLM configuration.", style=INFO_COLOR)
+            f"Run 'az aks claw create {cmd_flags}' to set up LLM configuration.", style=INFO_COLOR)
 
 
 def _aks_agent_status(agent_manager: AKSAgentManager):
-    """Display the status of the AKS agent deployment."""
+    """Display the status of the SREClaw deployment."""
     console = get_console()
 
-    console.print("\n📊 Checking AKS agent status...", style=INFO_COLOR)
+    console.print("\n📊 Checking SREClaw status...", style=INFO_COLOR)
     agent_status = agent_manager.get_agent_status()
 
     # Display helm status
@@ -365,7 +325,7 @@ def _aks_agent_status(agent_manager: AKSAgentManager):
         console.print("\n❌ Helm Release: Not found", style=ERROR_COLOR)
         cmd_flags = agent_manager.init_command_flags()
         console.print(
-            f"The AKS agent is not installed. Run 'az aks agent-init {cmd_flags}' to install.", style=INFO_COLOR)
+            f"SREClaw is not installed. Run 'az aks claw create {cmd_flags}' to install.", style=INFO_COLOR)
         return
     else:
         console.print(f"\n⚠️  Helm Release: {helm_status}", style=WARNING_COLOR)
@@ -410,9 +370,9 @@ def _aks_agent_status(agent_manager: AKSAgentManager):
 
     # Display overall status
     if agent_status.get("ready", False):
-        console.print("\n✅ AKS agent is ready and running!", style=SUCCESS_COLOR)
+        console.print("\n✅ SREClaw is ready and running!", style=SUCCESS_COLOR)
     else:
-        console.print("\n⚠️  AKS agent is not fully ready", style=WARNING_COLOR)
+        console.print("\n⚠️  SREClaw is not fully ready", style=WARNING_COLOR)
 
 
 def aks_agent_cleanup(
@@ -423,7 +383,7 @@ def aks_agent_cleanup(
         namespace,
         mode=None,
 ):
-    """Cleanup and uninstall the AKS agent."""
+    """Cleanup and uninstall SREClaw."""
     with CLITelemetryClient(event_type="cleanup") as telemetry_client:
         use_client_mode = (mode == "client")
 
@@ -443,7 +403,7 @@ def aks_agent_cleanup(
                 style=WARNING_COLOR)
 
         console.print(
-            "\n⚠️  Warning: This will uninstall the AKS agent and delete all associated resources.",
+            "\n⚠️  Warning: This will uninstall SREClaw and delete all associated resources.",
             style=WARNING_COLOR)
 
         user_confirmation = console.input(
@@ -485,7 +445,7 @@ def aks_agent_cleanup(
         else:
             cmd_flags = agent_manager.command_flags()
             console.print(
-                f"❌ Cleanup failed. Please run 'az aks agent --status {cmd_flags}' to verify cleanup completion.", style=ERROR_COLOR)
+                f"❌ Cleanup failed. Please run 'az sreclaw --status {cmd_flags}' to verify cleanup completion.", style=ERROR_COLOR)
 
 
 # pylint: disable=unused-argument
@@ -562,8 +522,8 @@ def aks_agent(
             if not success:
                 # get_agent_pods already logged the error, provide helpful message
                 cmd_flags = agent_manager.init_command_flags()
-                error_msg = f"Failed to find AKS agent pods: {result}\n"
-                error_msg += f"The AKS agent may not be deployed. Run 'az aks agent-init {cmd_flags}' to initialize the deployment."
+                error_msg = f"Failed to find SREClaw pods: {result}\n"
+                error_msg += f"SREClaw may not be deployed. Run 'az aks claw create {cmd_flags}' to initialize the deployment."
                 raise CLIError(error_msg)
 
         # prepare CLI flags

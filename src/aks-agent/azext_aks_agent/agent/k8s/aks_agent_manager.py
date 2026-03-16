@@ -35,7 +35,7 @@ logger = get_logger(__name__)
 
 
 class AKSAgentManagerLLMConfigBase(ABC):
-    """Abstract base class for AKS Agent Manager with LLM configuration support."""
+    """Abstract base class for SREClaw Manager with LLM configuration support."""
 
     @abstractmethod
     def get_llm_config(self) -> Dict:
@@ -59,7 +59,7 @@ class AKSAgentManagerLLMConfigBase(ABC):
     @abstractmethod
     def exec_aks_agent(self, command_flags: str = "") -> bool:
         """
-        Execute AKS agent command.
+        Execute SREClaw command.
 
         Args:
             command_flags: Additional flags for the aks-agent command
@@ -91,10 +91,10 @@ class AKSAgentManagerLLMConfigBase(ABC):
 
 class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many-instance-attributes
     """
-    AKS Agent Manager for deploying and recycling AKS agent helm charts.
+    SREClaw Manager for deploying and recycling SREClaw helm charts.
 
     This class provides functionality to:
-    - Deploy AKS agent using helm charts
+    - Deploy SREClaw using helm charts
     - Upgrade existing deployments
     - Recycle (restart/refresh) agent pods
     - Monitor deployment status
@@ -106,30 +106,31 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
                  kubeconfig_path: Optional[str] = None,
                  helm_manager: Optional[HelmManager] = None):
         """
-        Initialize the AKS Agent Manager.
+        Initialize the SREClaw Manager.
 
         Args:
             resource_group_name: Azure resource group name for AKS cluster
             cluster_name: AKS cluster name
             subscription_id: Azure subscription ID
-            namespace: Kubernetes namespace for AKS agent (default: 'aks-agent')
+            namespace: Kubernetes namespace for SREClaw (default: 'aks-agent')
             kubeconfig_path: Path to kubeconfig file (default: None - use default config)
             helm_manager: HelmManager instance (default: None - create new one)
         """
         self.namespace = namespace
         self.kubeconfig_path = kubeconfig_path
-        self.helm_release_name = "aks-agent"
+        self.helm_release_name = "aks-sreclaw"
         self.chart_name = "aks-agent"
 
         self.llm_secret_name = "llm-config-secrets"
+        self.gateway_secret_name = "openclaw-gateway-token"
 
         # AKS context - initialized via constructor
         self.resource_group_name: str = resource_group_name
         self.cluster_name: str = cluster_name
         self.subscription_id: str = subscription_id
 
-        self.chart_repo = "oci://mcr.microsoft.com/aks/aks-agent-chart/aks-agent"
-        self.chart_version = AKS_AGENT_VERSION
+        self.chart_repo = "oci://docker.io/mainred/aks-sreclaw"
+        self.chart_version = "0.1.0"
 
         # credentials for aks-mcp
         # Default empty customized cluster role name means using default cluster role
@@ -269,7 +270,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
 
     def get_agent_pods(self) -> Tuple[bool, Union[List[str], str]]:
         """
-        Get running AKS agent pods from the Kubernetes cluster.
+        Get running SREClaw pods from the Kubernetes cluster.
 
         This function searches for pods with the label selector 'app.kubernetes.io/name=aks-agent'
         in the 'aks-agent' namespace and returns information about their status.
@@ -310,7 +311,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
                     f"No pods found with label selector '{AGENT_LABEL_SELECTOR}' or "
                     f"'{AKS_MCP_LABEL_SELECTOR}' in namespace '{self.namespace}'. "
                     f"This could mean:\n"
-                    f"  1. The AKS agent is not deployed in the cluster\n"
+                    f"  1. SREClaw is not deployed in the cluster\n"
                     f"  2. The namespace '{self.namespace}' does not exist\n"
                     f"  3. The pods have different labels than expected\n"
                     f"  4. You may not have sufficient permissions to list pods in this namespace"
@@ -358,7 +359,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
                 if warning_details:
                     warning_summary = "; ".join(warning_details)
                     logger.warning(
-                        "Found %d running AKS agent pod(s), but some pods are not running: %s. "
+                        "Found %d running SREClaw pod(s), but some pods are not running: %s. "
                         "These pods may need attention.",
                         len(running_pods), warning_summary
                     )
@@ -380,7 +381,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
                 f"No running pods found with label selector '{AGENT_LABEL_SELECTOR}' or "
                 f"'{AKS_MCP_LABEL_SELECTOR}' in namespace '{self.namespace}'. "
                 f"Found {len(pod_list.items)} pod(s) but none are in Running state: {status_summary}. "
-                f"The AKS agent pods may be starting up, failing to start, or experiencing issues."
+                f"SREClaw pods may be starting up, failing to start, or experiencing issues."
             )
             logger.error(error_msg)
             return False, error_msg
@@ -395,7 +396,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
             elif e.status == 404:
                 error_msg = (
                     f"Namespace '{self.namespace}' not found. "
-                    f"The AKS agent namespace may not exist in this cluster. "
+                    f"The SREClaw namespace may not exist in this cluster. "
                     f"Error details: {e}"
                 )
             else:
@@ -404,7 +405,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
             logger.error(error_msg)
             return False, error_msg
         except Exception as e:  # pylint: disable=broad-exception-caught
-            error_msg = f"Unexpected error while searching for AKS agent pods: {e}"
+            error_msg = f"Unexpected error while searching for SREClaw pods: {e}"
             logger.error(error_msg)
             return False, error_msg
 
@@ -441,7 +442,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
 
     def _wait_for_pods_removed(self, timeout: int = 60, interval: int = 2) -> bool:
         """
-        Wait for all AKS agent pods to be removed from the namespace.
+        Wait for all SREClaw pods to be removed from the namespace.
 
         Args:
             timeout: Maximum time to wait in seconds (default: 60)
@@ -492,7 +493,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
 
     def deploy_agent(self, chart_version: Optional[str] = None) -> Tuple[bool, str]:
         """
-        Deploy AKS agent using helm chart.
+        Deploy SREClaw using helm chart.
 
         Args:
             chart_version: Specific chart version to deploy (default: latest)
@@ -503,7 +504,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
                 - success: True if deployment was successful, False otherwise
                 - error_message: Error message if deployment failed, empty string if successful
         """
-        logger.info("Deploying/Upgrading AKS agent to namespace '%s'", self.namespace)
+        logger.info("Deploying/Upgrading SREClaw to namespace '%s'", self.namespace)
 
         # Prepare helm install command
         helm_args = [
@@ -551,14 +552,14 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
                 logger.debug("Failed to remove temporary values file: %s", e)
 
         if success:
-            logger.info("AKS agent deployed/upgraded successfully")
+            logger.info("SREClaw deployed/upgraded successfully")
             return True, ""
 
         return False, output
 
     def get_agent_status(self) -> Dict:  # pylint: disable=too-many-locals
         """
-        Get the current status of AKS agent deployment.
+        Get the current status of SREClaw deployment.
 
         Returns:
             Dictionary containing status information
@@ -724,7 +725,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
 
     def uninstall_agent(self, delete_secret: bool = True) -> bool:
         """
-        Uninstall AKS agent helm release and optionally delete LLM configuration secret.
+        Uninstall SREClaw helm release and optionally delete LLM configuration secret.
 
         Args:
             delete_secret: Whether to delete the LLM configuration secret (default: True)
@@ -732,7 +733,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
         Returns:
             True if uninstallation was successful
         """
-        logger.info("Uninstalling AKS agent from namespace '%s'", self.namespace)
+        logger.info("Uninstalling SREClaw from namespace '%s'", self.namespace)
 
         # Execute helm uninstall
         success, output = self._run_helm_command([
@@ -751,7 +752,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
             return True
 
         if success:
-            logger.info("AKS agent uninstalled successfully")
+            logger.info("SREClaw uninstalled successfully")
             # Delete the LLM configuration secret if requested
             if delete_secret:
                 self.delete_llm_config_secret()
@@ -763,13 +764,13 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
                 logger.warning("Timeout waiting for all pods to be removed. Some pods may still be terminating.")
 
             return True
-        raise AzCLIError(f"Failed to uninstall AKS agent: {output}")
+        raise AzCLIError(f"Failed to uninstall SREClaw: {output}")
 
     def exec_aks_agent(self, command_flags: str = "") -> bool:
         """
-        Execute commands on the AKS agent pod using PodExecManager.
+        Execute commands on the SREClaw pod using PodExecManager.
 
-        This method automatically discovers a running AKS agent pod and executes
+        This method automatically discovers a running SREClaw pod and executes
         the specified command on it.
 
         Args:
@@ -781,25 +782,25 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
         Raises:
             AzCLIError: If execution fails or no running pods are found
         """
-        logger.info("Executing AKS agent command with flags: %s", command_flags)
+        logger.info("Executing SREClaw command with flags: %s", command_flags)
 
         try:
-            # Find available AKS agent pods internally
+            # Find available SREClaw pods internally
             success, result = self.get_agent_pods()
             if not success:
-                error_msg = f"Failed to find AKS agent pods: {result}\n"
+                error_msg = f"Failed to find SREClaw pods: {result}\n"
                 error_msg += (
-                    "The AKS agent may not be deployed. "
-                    "Run 'az aks agent-init' to initialize the deployment."
+                    "SREClaw may not be deployed. "
+                    "Run 'az aks claw create' to initialize the deployment."
                 )
                 raise AzCLIError(error_msg)
 
             pod_names = result
             if not pod_names:
-                error_msg = "No running AKS agent pods found.\n"
+                error_msg = "No running SREClaw pods found.\n"
                 error_msg += (
-                    "The AKS agent may not be deployed. "
-                    "Run 'az aks agent-init' to initialize the deployment."
+                    "SREClaw may not be deployed. "
+                    "Run 'az aks claw create' to initialize the deployment."
                 )
                 raise AzCLIError(error_msg)
 
@@ -824,7 +825,7 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
             )
 
             if not success:
-                raise AzCLIError("Failed to execute AKS agent command")
+                raise AzCLIError("Failed to execute SREClaw command")
 
             logger.info("AKS agent command executed successfully")
             return True
@@ -834,21 +835,16 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
             raise
 
     def create_llm_config_secret(self) -> None:
-        """
-        Create or update the LLM configuration Kubernetes secret.
-        Raises AzCLIError when failed.
-        """
-
+        """Create or update the LLM configuration Kubernetes secret."""
         secret_data = self.llm_config_manager.get_llm_model_secret_data()
         secret_body = client.V1Secret(
             api_version="v1",
             kind="Secret",
             metadata=client.V1ObjectMeta(name=self.llm_secret_name, namespace=self.namespace),
             data=secret_data,
-            type="Opaque",  # Or other built-in types like kubernetes.io/tls
+            type="Opaque",
         )
         try:
-            # Try to create the secret
             self.core_v1.create_namespaced_secret(
                 namespace=self.namespace,
                 body=secret_body
@@ -857,7 +853,6 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
 
         except ApiException as e:
             if e.status == 409:
-                # Secret already exists, update it
                 try:
                     self.core_v1.replace_namespaced_secret(
                         name=self.llm_secret_name,
@@ -871,6 +866,37 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
                 raise AzCLIError(f"Failed to create LLM configuration secret: {e}")
         except Exception as e:
             raise AzCLIError(f"Unexpected error managing LLM configuration secret: {e}")
+
+    def create_gateway_token_secret(self) -> None:
+        """Create or update the openclaw-gateway-token secret with random token."""
+        import secrets
+
+        random_token = secrets.token_urlsafe(32)
+        secret_data = {
+            "OPENCLAW_GATEWAY_TOKEN": base64.b64encode(random_token.encode()).decode()
+        }
+
+        secret_body = client.V1Secret(
+            api_version="v1",
+            kind="Secret",
+            metadata=client.V1ObjectMeta(name=self.gateway_secret_name, namespace=self.namespace),
+            data=secret_data,
+            type="Opaque",
+        )
+        try:
+            self.core_v1.create_namespaced_secret(
+                namespace=self.namespace,
+                body=secret_body
+            )
+            logger.info("Gateway token secret '%s' created successfully", self.gateway_secret_name)
+
+        except ApiException as e:
+            if e.status == 409:
+                logger.info("Gateway token secret '%s' already exists, skipping creation", self.gateway_secret_name)
+            else:
+                raise AzCLIError(f"Failed to create gateway token secret: {e}")
+        except Exception as e:
+            raise AzCLIError(f"Unexpected error managing gateway token secret: {e}")
 
     def delete_llm_config_secret(self) -> None:
         """
@@ -892,54 +918,58 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
             logger.warning("Unexpected error deleting LLM configuration secret: %s", e)
 
     def _create_helm_values(self):
-        """
-        Create Helm values for deploying the AKS agent with LLM configuration.
-
-        Returns:
-            Dictionary of Helm values
-        """
-        env_vars = self.llm_config_manager.get_env_vars(self.llm_secret_name)
+        """Create Helm values for deploying the AKS agent with LLM configuration."""
+        first_model = next(iter(self.llm_config_manager.model_list.items()),
+                           None) if self.llm_config_manager.model_list else None
 
         helm_values = {
-            "modelList": self.llm_config_manager.secured_model_list(),
-            "additionalEnvVars": env_vars,
-            "nodeSelector": {"kubernetes.io/os": "linux"},
+            "image": {
+                "repository": "mainred/openclaw-gateway",
+                "tag": "latest"
+            },
+            "secrets": {
+                "existingSecret": self.gateway_secret_name
+            },
+            "serviceAccount": {
+                "create": False,
+                "name": self.aks_mcp_service_account_name
+            },
+            "azureWorkloadIdentity": {
+                "enabled": True
+            },
+            "aks": {
+                "clusterName": self.cluster_name,
+                "resourceGroup": self.resource_group_name,
+                "subscriptionId": self.subscription_id
+            }
         }
 
-        # Add AKS context as helm values
-        aks_context = {}
-        if self.resource_group_name:
-            aks_context["resourceGroupName"] = self.resource_group_name
-        if self.cluster_name:
-            aks_context["clusterName"] = self.cluster_name
-        if self.subscription_id:
-            aks_context["subscriptionID"] = self.subscription_id
-        if aks_context:
-            helm_values["aksContext"] = aks_context
+        if first_model:
+            model_name, model_config = first_model
+            provider = model_config.get("provider", "")
+            api_base = model_config.get("api_base", "")
 
-        if "mcpAddons" not in helm_values:
-            helm_values["mcpAddons"] = {}
-        if "aks" not in helm_values["mcpAddons"]:
-            helm_values["mcpAddons"]["aks"] = {}
-
-        helm_values["mcpAddons"]["aks"]["serviceAccount"] = {
-            "name": self.aks_mcp_service_account_name,
-            "create": False,
-        }
+            llm_config = {
+                "provider": provider,
+                "model": model_name,
+                "apiKeySecretName": self.llm_secret_name,
+                "apiKeySecretKey": LLMProvider.sanitize_k8s_secret_key(model_config)
+            }
+            
+            if api_base:
+                llm_config["apiBase"] = api_base
+            
+            helm_values["openclaw"] = {
+                "llm": llm_config
+            }
 
         return helm_values
 
     def save_llm_config(self, provider: LLMProvider, params: dict) -> None:
-        """
-        Save LLM configuration using the LLMConfigManager.
-
-        Args:
-            provider: LLMProvider instance
-            params: Dictionary of model parameters
-        """
+        """Save LLM configuration and create necessary secrets."""
         self.llm_config_manager.save(provider, params)
-        # Create the Kubernetes secret using the cached configuration
         self.create_llm_config_secret()
+        self.create_gateway_token_secret()
 
 
 class AKSAgentManagerClient(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many-instance-attributes
@@ -949,7 +979,7 @@ class AKSAgentManagerClient(AKSAgentManagerLLMConfigBase):  # pylint: disable=to
                  kubeconfig_path: str,
                  config_dir: Optional[str] = None):
         """
-        Initialize the AKS Agent Manager.
+        Initialize the SREClaw Manager.
 
         Args:
             resource_group_name: Azure resource group name for AKS cluster
@@ -1088,7 +1118,7 @@ class AKSAgentManagerClient(AKSAgentManagerLLMConfigBase):  # pylint: disable=to
             if not self.config_dir.exists() or not model_list_file.exists() or not custom_toolset_file.exists():
                 raise AzCLIError(
                     "AKS agent configuration not found.\n"
-                    "Please run 'az aks agent-init' first to initialize the agent."
+                    "Please run 'az aks claw create' first to initialize the agent."
                 )
 
             # Check if Docker is available

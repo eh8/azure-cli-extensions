@@ -21,11 +21,6 @@ class OpenAIProvider(LLMProvider):
         return "openai"
 
     @property
-    def model_route(self) -> str:
-        # Openai model route is empty under the Litellm provider scheme
-        return ""
-
-    @property
     def parameter_schema(self):
         return {
             "model": {
