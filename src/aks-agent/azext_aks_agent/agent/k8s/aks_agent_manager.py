@@ -919,9 +919,6 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
 
     def _create_helm_values(self):
         """Create Helm values for deploying the AKS agent with LLM configuration."""
-        first_model = next(iter(self.llm_config_manager.model_list.items()),
-                           None) if self.llm_config_manager.model_list else None
-
         helm_values = {
             "image": {
                 "repository": "mainred/openclaw-gateway",
@@ -944,23 +941,25 @@ class AKSAgentManager(AKSAgentManagerLLMConfigBase):  # pylint: disable=too-many
             }
         }
 
-        if first_model:
-            model_name, model_config = first_model
-            provider = model_config.get("provider", "")
-            api_base = model_config.get("api_base", "")
-
-            llm_config = {
-                "provider": provider,
-                "model": model_name,
-                "apiKeySecretName": self.llm_secret_name,
-                "apiKeySecretKey": LLMProvider.sanitize_k8s_secret_key(model_config)
-            }
-            
-            if api_base:
-                llm_config["apiBase"] = api_base
+        if self.llm_config_manager.model_list:
+            providers = []
+            for provider_name, provider_config in self.llm_config_manager.model_list.items():
+                provider_entry = {
+                    "name": provider_name,
+                    "apiKeySecretKey": f"{provider_name}-key",
+                    "models": provider_config.get("models", [])
+                }
+                
+                if "api_base" in provider_config:
+                    provider_entry["apiBase"] = provider_config["api_base"]
+                
+                providers.append(provider_entry)
             
             helm_values["openclaw"] = {
-                "llm": llm_config
+                "llm": {
+                    "apiKeySecretName": self.llm_secret_name,
+                    "providers": providers
+                }
             }
 
         return helm_values

@@ -23,10 +23,10 @@ class OpenAIProvider(LLMProvider):
     @property
     def parameter_schema(self):
         return {
-            "model": {
+            "models": {
                 "secret": False,
                 "default": "gpt-5",
-                "hint": None,
+                "hint": "comma-separated model names, e.g., gpt-5,gpt-4o",
                 "validator": non_empty
             },
             "api_key": {
@@ -39,9 +39,12 @@ class OpenAIProvider(LLMProvider):
 
     def validate_connection(self, params: dict) -> Tuple[str, str]:
         api_key = params.get("api_key")
-        model_name = params.get("model")
-        if not all([api_key, model_name]):
+        models_str = params.get("models")
+        if not all([api_key, models_str]):
             return "Missing required OpenAI parameters.", "retry_input"
+
+        models = [m.strip() for m in models_str.split(",")]
+        model_name = models[0]
 
         url = "https://api.openai.com/v1/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}",
@@ -56,7 +59,7 @@ class OpenAIProvider(LLMProvider):
             resp = requests.post(url, headers=headers,
                                  json=payload, timeout=10)
             resp.raise_for_status()
-            return None, "save"  # None error means success
+            return None, "save"
         except requests.exceptions.HTTPError as e:
             if 400 <= resp.status_code < 500:
                 return f"Client error: {e} - {resp.text}", "retry_input"

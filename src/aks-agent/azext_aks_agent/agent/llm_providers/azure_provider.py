@@ -27,18 +27,18 @@ class AzureProvider(LLMProvider):
         return "Azure OpenAI"
 
     @property
-    def provider(self) -> str:
+    def name(self) -> str:
         return "azure-openai"
 
     @property
     def parameter_schema(self):
         return {
-            "model": {
+            "models": {
                 "secret": False,
                 "default": None,
-                "hint": "the model name, e.g., gpt-5",
+                "hint": "comma-separated model names, e.g., gpt-5,gpt-4o",
                 "validator": non_empty,
-                "alias": "model"
+                "alias": "models"
             },
             "api_key": {
                 "secret": True,

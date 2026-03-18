@@ -17,6 +17,10 @@ class AnthropicProvider(LLMProvider):
         return "Anthropic"
 
     @property
+    def provider(self) -> str:
+        return "anthropic"
+
+    @property
     def name(self) -> str:
         return "anthropic"
 
@@ -29,19 +33,22 @@ class AnthropicProvider(LLMProvider):
                 "hint": None,
                 "validator": non_empty
             },
-            "model": {
+            "models": {
                 "secret": False,
                 "default": "claude-sonnet-4",
-                "hint": None,
+                "hint": "comma-separated model names, e.g., claude-sonnet-4,claude-opus-4",
                 "validator": non_empty
             },
         }
 
     def validate_connection(self, params: dict) -> Tuple[str, str]:
         api_key = params.get("api_key")
-        model_name = params.get("model")
-        if not all([api_key, model_name]):
+        models_str = params.get("models")
+        if not all([api_key, models_str]):
             return "Missing required Anthropic parameters.", "retry_input"
+
+        models = [m.strip() for m in models_str.split(",")]
+        model_name = models[0]
 
         url = "https://api.anthropic.com/v1/messages"
         headers = {
@@ -59,7 +66,7 @@ class AnthropicProvider(LLMProvider):
             resp = requests.post(url, headers=headers,
                                  json=payload, timeout=10)
             resp.raise_for_status()
-            return None, "save"  # None error means success
+            return None, "save"
         except requests.exceptions.HTTPError as e:
             if 400 <= resp.status_code < 500:
                 return f"Client error: {e} - {resp.text}", "retry_input"

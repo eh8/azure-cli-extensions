@@ -21,8 +21,6 @@ _PROVIDER_CLASSES: List[LLMProvider] = [
     AzureProvider,
     OpenAIProvider,
     AnthropicProvider,
-    GeminiProvider,
-    OpenAICompatibleProvider,
     # Add new providers here
 ]
 
@@ -65,8 +63,6 @@ def prompt_provider_choice() -> LLMProvider:
     while True:
         for idx, name in choices:
             console.print(f" {idx}. {name}", style=f"bold {HELP_COLOR}")
-        console.print(f" {len(choices) + 1}. For other providers, see https://aka.ms/aks/agentic-cli/init",
-                      style=f"bold {HELP_COLOR}")
         sel_idx = console.input(
             f"[bold {HELP_COLOR}]Please choose the LLM provider (1-{len(choices)}): [/bold {HELP_COLOR}]").strip()
 

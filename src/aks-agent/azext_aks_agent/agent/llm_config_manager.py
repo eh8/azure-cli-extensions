@@ -23,42 +23,34 @@ class LLMConfigManager:
         self.model_list = model_list if model_list is not None else {}
 
     def save(self, provider: LLMProvider, params: dict):
-        # save the model config, and translate the model name to the one with llm provider route
-        model_name = provider.model_name(params.get("model"))
-        params["model"] = model_name
-        params["provider"] = provider.name
+        models_str = params.get("models", "")
+        models = [m.strip() for m in models_str.split(",") if m.strip()]
         
-        # Store api_base at top level if it exists
+        provider_config = {
+            "provider": provider.name,
+            "models": models
+        }
+        
         if "api_base" in params:
-            params["api_base"] = params["api_base"]
+            provider_config["api_base"] = params["api_base"]
         
-        self.model_list[model_name] = params
-
-    def secured_model_list(self) -> Dict[str, dict]:
-        secured_config = {}
-        for model_name, model_config in self.model_list.items():
-            secured_config[model_name] = LLMProvider.to_secured_model_list_config(model_config)
-        return secured_config
+        if "api_key" in params:
+            provider_config["api_key"] = params["api_key"]
+        
+        self.model_list[provider.name] = provider_config
 
     def get_llm_model_secret_data(self) -> Dict[str, str]:
         """
-        Get Kubernetes secret data for all LLM models in the configuration.
+        Get Kubernetes secret data for all LLM providers in the configuration.
         """
+        import base64
         secrets_data = {}
-        for _, model_config in self.model_list.items():
-            secret_data = LLMProvider.to_k8s_secret_data(model_config)
-            secrets_data.update(secret_data)
+        for provider_name, provider_config in self.model_list.items():
+            if "api_key" in provider_config:
+                secret_key = f"{provider_name}-key"
+                api_key = provider_config["api_key"]
+                secrets_data[secret_key] = base64.b64encode(api_key.encode("utf-8")).decode("utf-8")
         return secrets_data
-
-    def get_env_vars(self, secret_name: str) -> List[Dict[str, str]]:
-        """
-        Get environment variable mappings for all LLM models in the configuration.
-        """
-        env_vars_list = []
-        for _, model_config in self.model_list.items():
-            env_var = LLMProvider.to_env_vars(secret_name, model_config)
-            env_vars_list.append(env_var)
-        return env_vars_list
 
 
 class LLMConfigManagerLocal:  # pylint: disable=too-few-public-methods
@@ -134,16 +126,21 @@ class LLMConfigManagerLocal:  # pylint: disable=too-few-public-methods
             provider: LLM provider instance
             params: Model parameters to save
         """
-        # Save the model config, and translate the model name to the one with llm provider route
-        model_name = provider.model_name(params.get("model"))
-        params["model"] = model_name
-        params["provider"] = provider.name
+        models_str = params.get("models", "")
+        models = [m.strip() for m in models_str.split(",") if m.strip()]
         
-        # Store api_base at top level if it exists
+        provider_config = {
+            "provider": provider.name,
+            "models": models
+        }
+        
         if "api_base" in params:
-            params["api_base"] = params["api_base"]
+            provider_config["api_base"] = params["api_base"]
         
-        self.model_list[model_name] = params
+        if "api_key" in params:
+            provider_config["api_key"] = params["api_key"]
+        
+        self.model_list[provider.name] = provider_config
 
         # Persist to file
         self._save_config()
